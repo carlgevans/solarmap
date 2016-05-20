@@ -39,7 +39,7 @@ class SolarMap(object):
         map_api: A Map API instance.
         sw_location: The field in SolarWinds that contains the location data.
     """
-    def __init__(self, sw_api=None, map_api=None, sw_location=None):
+    def __init__(self, sw_api=None, map_api=None, sw_location=None, map_path="map.html"):
         if sw_api is None or map_api is None or sw_location is None:
             raise errors.Error("[%s.%s] - You must provide a SolarWinds API instance, a Map API instance "
                                "and the SolarWinds location field." % (__name__, self.__class__.__name__))
@@ -47,6 +47,7 @@ class SolarMap(object):
             self.sw_api = sw_api
             self.map_api = map_api
             self.sw_location = sw_location
+            self.map_path = map_path
 
     def get_node_locations(self):
         """Get a list of distinct node locations and their highest statuses.
@@ -90,7 +91,7 @@ class SolarMap(object):
         """
         location_list = self.get_node_locations()
         self.plot_locations(location_list)
-        self.map_api.generate("map.html")
+        self.map_api.generate(self.map_path)
 
 
 class Location(object):
@@ -204,7 +205,7 @@ def main():
         map_api = map.Api(settings['map_start_location'],settings['map_start_zoom'])
 
         # Pass the above APIs to the constructor of SolarMap.
-        solarmap = SolarMap(sw_api, map_api, settings['sw_location_field'])
+        solarmap = SolarMap(sw_api, map_api, settings['sw_location_field'], settings['map_file_path'])
     except errors.Error as error:
         logging.error(error)
     else:
