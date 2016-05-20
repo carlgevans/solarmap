@@ -122,7 +122,7 @@ class Location(object):
             latlng = self.map_api.geocode(self.parsed_address)
         except errors.Error as error:
             raise errors.Error("[%s.%s] - LatLng not found for address '%s'. Detail: %s"
-                          % (__name__, self.__class__.__name__, self.parsed_address, error))
+                               % (__name__, self.__class__.__name__, self.parsed_address, error))
         else:
             return latlng
 
@@ -133,7 +133,11 @@ class Location(object):
          Returns:
             A parsed string containing location address data.
         """
-        parsed_address = self.address
+        if ", " in self.address:
+            parsed_address = self.address.split(", ")[-1]
+        else:
+            raise errors.Error("[%s.%s] - '%s' is not a valid address."
+                               % (__name__, self.__class__.__name__, self.address))
 
         return parsed_address
 
@@ -145,11 +149,41 @@ class Location(object):
             A string containing the path to the marker image for this location.
         """
         if self.status == 1 or self.status == 9:
-            image_path = "markers/green.png"
+            image_path = "markers/%s_up.png" % self.type
+        elif self.status == 3:
+            image_path = "markers/%s_warn.png" % self.type
         else:
-            image_path = "markers/red.png"
+            image_path = "markers/%s_down.png" % self.type
 
         return image_path
+
+    @property
+    def type(self):
+        """Determine the type of location by searching for certain strings.
+
+         Returns:
+            A string containing the location type.
+        """
+        if " Hub," in self.address:
+            loc_type = "h"
+        elif " RP," in self.address:
+            loc_type = "r"
+        elif " FS," in self.address:
+            loc_type = "f"
+        elif " PTS," in self.address:
+            loc_type = "p"
+        elif " CAS," in self.address:
+            loc_type = "c"
+        elif " CTS," in self.address:
+            loc_type = "t"
+        elif " AB," in self.address:
+            loc_type = "a"
+        elif "Toll" in self.address or "Mill" in self.address:
+            loc_type = "d"
+        else:
+            loc_type = "o"
+
+        return loc_type
 
 
 def main():
