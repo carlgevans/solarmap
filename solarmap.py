@@ -36,26 +36,23 @@ class SolarMap(object):
 
     Attributes:
         sw_api: A SolarWinds API instance.
-        map_api: A Map instance.
+        map_api: A Map API instance.
         sw_location: The field in SolarWinds that contains the location data.
-        logger: A logging instance from the Python logging library.
     """
-    def __init__(self, sw_api=None, map_api=None, sw_location=None, logger=None):
-        if sw_api is None or map_api is None or sw_location is None or logger is None:
-            raise errors.Error("[%s.%s] - You must provide a SolarWinds API instance, a Map instance, "
-                               "a logger instance and the SolarWinds location field."
-                               % (__name__, self.__class__.__name__))
+    def __init__(self, sw_api=None, map_api=None, sw_location=None):
+        if sw_api is None or map_api is None or sw_location is None:
+            raise errors.Error("[%s.%s] - You must provide a SolarWinds API instance, a Map API instance "
+                               "and the SolarWinds location field." % (__name__, self.__class__.__name__))
         else:
             self.sw_api = sw_api
             self.map_api = map_api
             self.sw_location = sw_location
-            self.logger = logger
 
     def get_node_locations(self):
         """Get a list of distinct node locations and their highest statuses.
 
         Returns:
-            A list of tuples containing the location and highest status value.
+            A list of Location instances.
         """
         locations = self.sw_api.query("SELECT DISTINCT Nodes.CustomProperties.%s as Location, "
                                       "MAX(Nodes.Status) as Status "
@@ -66,44 +63,93 @@ class SolarMap(object):
         location_list = []
 
         for location in locations['results']:
-            location_list.append((location['Location'], location['Status']))
+            new_location = Location(location['Location'], location['Status'], self.map_api)
+            location_list.append(new_location)
 
         return location_list
 
-    def parse_location(self, location):
-        """Perform any custom parsing of the location field contents here and then pass it back.
+    def plot_locations(self, location_list):
+        """Plots the locations on the map from a list of location instances.
 
-         Returns:
-            A string containing the parsed address.
-         """
-        address = location
-
-        return address
+        Args:
+            location_list = A list of location instances.
+        """
+        for location in location_list:
+            try:
+                new_marker = map.Marker(location.latlng, location.address, location.image_path)
+            except errors.Error as error:
+                logging.error("[%s.%s] - An error occurred while plotting location '%s'. Detail: %s"
+                              % (__name__, self.__class__.__name__, location.address, error))
+            else:
+                self.map_api.add_marker(new_marker)
 
     def generate(self):
-        """Populates the list of markers in the map instance before calling the generate method to create
+        """Populates a list of locations in the map instance before calling the generate method to create
         the map html file.
 
         """
         location_list = self.get_node_locations()
-
-        for location in location_list:
-            try:
-                address = self.parse_location(location[0])
-                latlng = self.map_api.geocode(address)
-            except errors.Error as error:
-                self.logger.error("[%s.%s] - Location string '%s' not found by geocoding. Detail: %s"
-                                  % (__name__, self.__class__.__name__, location[0], error))
-
-            else:
-                if location[1] == 1 or location[1] == 9:
-                    new_marker = map.Marker(latlng, location[0], "markers/green.png")
-                else:
-                    new_marker = map.Marker(latlng, location[0], "markers/red.png")
-
-                self.map_api.add_marker(new_marker)
-
+        self.plot_locations(location_list)
         self.map_api.generate("map.html")
+
+
+class Location(object):
+    """A SolarMap Location.
+
+    An entity representing a SolarMap location.
+
+    Attributes:
+        address: An unparsed string containing location address data.
+        status: The location's status. 0 = Unknown, 1 = Up, 2 = Down, 3 = Warning etc.
+    """
+    def __init__(self, address=None, status=None, map_api=None):
+        if address is None or status is None or map_api is None:
+            raise errors.Error("[%s.%s] - You must provide an address, a status and a map api instance."
+                               % (__name__, self.__class__.__name__))
+        else:
+            self.address = address
+            self.status = status
+            self.map_api = map_api
+
+    @property
+    def latlng(self):
+        """Geocode the parsed address.
+
+         Returns:
+            The location's latlng returned as a tuple.
+        """
+        try:
+            latlng = self.map_api.geocode(self.parsed_address)
+        except errors.Error as error:
+            raise errors.Error("[%s.%s] - LatLng not found for address '%s'. Detail: %s"
+                          % (__name__, self.__class__.__name__, self.parsed_address, error))
+        else:
+            return latlng
+
+    @property
+    def parsed_address(self):
+        """Perform any custom parsing of the location address attribute here.
+
+         Returns:
+            A parsed string containing location address data.
+        """
+        parsed_address = self.address
+
+        return parsed_address
+
+    @property
+    def image_path(self):
+        """Determine the correct image to use based upon the status and return the correct image path.
+
+         Returns:
+            A string containing the path to the marker image for this location.
+        """
+        if self.status == 1 or self.status == 9:
+            image_path = "markers/green.png"
+        else:
+            image_path = "markers/red.png"
+
+        return image_path
 
 
 def main():
@@ -124,7 +170,7 @@ def main():
         map_api = map.Api(settings['map_start_location'],settings['map_start_zoom'])
 
         # Pass the above APIs to the constructor of SolarMap.
-        solarmap = SolarMap(sw_api, map_api, settings['sw_location_field'], logging)
+        solarmap = SolarMap(sw_api, map_api, settings['sw_location_field'])
     except errors.Error as error:
         logging.error(error)
     else:
