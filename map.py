@@ -17,6 +17,8 @@
 import requests
 import json
 import errors
+import pickle
+import sqlite3
 
 """Generates a simple map with markers using the Google API.
 
@@ -46,25 +48,40 @@ class Api(object):
             self.zoom = zoom
             self._markers = []
 
-    def geocode(self, location_string):
-        """Fetches a latitude and longitude dictionary from a location string.
+    def geocode(self, location):
+        """Resolves a latitude and longitude from a location string.
+
+        If the address has been requested before then return the latlng from a GeoCache instance.
+
+        Args:
+            location = A string containing a location.
 
         Returns:
-            A dictionary containing the latitude and longitude.
+            A tuple containing the latitude and longitude.
 
         Raises:
             If the location cannot be found it will cause an IndexError exception, which is caught. A custom
             Exception will be raised from this.
         """
-        try:
-            latlng = requests.get('http://maps.googleapis.com/maps/api/geocode/json?address="%s"' % location_string)
-            latlng = json.loads(latlng.text)
-            latlng_dict = latlng['results'][0]['geometry']['location']
-        except IndexError as e:
-            raise errors.Error("[%s.%s] - An error occurred while attempting to geocode location string '%s'. "
-                               "Detail: %s" % (__name__, self.__class__.__name__, location_string, e))
+        # Instantiate a GeoCache instance and attempt to fetch the location.
+        cache = GeoCache()
+        cache_result = cache.fetch_location(location)
+
+        if cache_result:
+            latlng = cache_result
         else:
-            return latlng_dict['lat'], latlng_dict['lng']
+            try:
+                response = requests.get('http://maps.googleapis.com/maps/api/geocode/json?address="%s"' % location)
+                latlng_dict = json.loads(response.text)
+                latlng_dict = latlng_dict['results'][0]['geometry']['location']
+            except IndexError as e:
+                raise errors.Error("[%s.%s] - An error occurred while attempting to geocode location string '%s'. "
+                                   "Detail: %s" % (__name__, self.__class__.__name__, location, e))
+            else:
+                latlng = latlng_dict['lat'], latlng_dict['lng']
+                cache.store_location(location, latlng)
+
+        return latlng
 
     def add_marker(self, marker):
         """Simply adds a populated marker instance to the instance's marker list, ready for map generation.
@@ -143,3 +160,29 @@ class Marker(object):
             self.latlng = latlng
             self.title = title
             self.image_path = image_path
+
+
+class GeoCache(object):
+    def __init__(self, db_name="geocache.db"):
+        self.connection = sqlite3.connect(db_name)
+
+        # Create the table if it doesn't already exist.
+        cursor = self.connection.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS GeoCache (location STRING PRIMARY KEY, latlng BLOB)")
+        self.connection.commit()
+
+    def fetch_location(self, location):
+        cursor = self.connection.cursor()
+        cursor.execute("SELECT latlng FROM GeoCache WHERE location='%s'" % location)
+        latlng = cursor.fetchone()
+
+        if latlng is None:
+            return False
+        else:
+            return pickle.loads(latlng[0])
+
+    def store_location(self, location, latlng):
+        cursor = self.connection.cursor()
+        cursor.execute("INSERT INTO GeoCache(location, latlng) VALUES(?, ?)",
+                       (location, sqlite3.Binary(pickle.dumps(latlng, -1))))
+        self.connection.commit()
