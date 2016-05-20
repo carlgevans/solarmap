@@ -74,11 +74,11 @@ class SolarMap(object):
         """Perform any custom parsing of the location field contents here and then pass it back.
 
          Returns:
-            A string containing the parsed address.
+            A string containing the parsed location.
          """
-        address = location
+        parsed_location = location
 
-        return address
+        return parsed_location
 
     def generate(self):
         """Populates the list of markers in the map instance before calling the generate method to create
@@ -89,8 +89,8 @@ class SolarMap(object):
 
         for location in location_list:
             try:
-                address = self.parse_location(location[0])
-                latlng = self.map_api.geocode(address)
+                parsed_location = self.parse_location(location[0])
+                latlng = self.map_api.geocode(parsed_location)
             except errors.Error as error:
                 self.logger.error("[%s.%s] - Location string '%s' not found by geocoding. Detail: %s"
                                   % (__name__, self.__class__.__name__, location[0], error))
