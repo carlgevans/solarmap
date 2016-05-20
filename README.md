@@ -41,7 +41,7 @@ pip install -r requirements.txt
 
   The HTTPAdapter override solution was not working, but the nasty hack of connectionpool.py did.
 
-* Perform any parsing of your location field in the parse_locations method.
+* Perform any parsing of your location address field in the parsed_address method.
 
 * You can change the custom location field that is queried in the settings file.
 
