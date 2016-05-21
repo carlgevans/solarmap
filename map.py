@@ -164,6 +164,13 @@ class Marker(object):
 
 
 class GeoCache(object):
+    """GeoCache class.
+
+    Retrieves or stores location data in a sqlite database cache.
+
+    Attributes:
+        db_name: An optional database name. Defaults to 'geocache.db'.
+    """
     def __init__(self, db_name="geocache.db"):
         self.connection = sqlite3.connect(db_name)
 
@@ -173,6 +180,14 @@ class GeoCache(object):
         self.connection.commit()
 
     def fetch_location(self, location):
+        """Attempts to find the passed location string in the cache.
+
+        Args:
+            location = A string containing a location to be retrieved.
+
+        Returns:
+            A latlng tuple if the location is found, or a boolean False if not.
+        """
         cursor = self.connection.cursor()
         cursor.execute("SELECT latlng FROM GeoCache WHERE location='%s'" % location)
         latlng = cursor.fetchone()
@@ -183,6 +198,12 @@ class GeoCache(object):
             return pickle.loads(latlng[0])
 
     def store_location(self, location, latlng):
+        """Stores a latlng against a location in the cache.
+
+        Args:
+            location = A string containing a location to be stored.
+            latlng = A latlng tuple to be stored against a location string.
+        """
         cursor = self.connection.cursor()
         cursor.execute("INSERT INTO GeoCache(location, latlng) VALUES(?, ?)",
                        (location, sqlite3.Binary(pickle.dumps(latlng, -1))))
