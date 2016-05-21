@@ -103,6 +103,7 @@ class Api(object):
                new google.maps.Marker({{
                position: new google.maps.LatLng({lat}, {lng}),
                map: map,
+               optimized: false,
                title: "{title}",
                icon: "{icon}"
                 }});
