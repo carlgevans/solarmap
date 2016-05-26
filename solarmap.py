@@ -56,7 +56,7 @@ class SolarMap(object):
             A list of Location instances.
         """
         locations = self.sw_api.query("SELECT DISTINCT Nodes.CustomProperties.%s as Location, "
-                                      "MAX(Nodes.Status) as Status "
+                                      "MAX(CASE WHEN Nodes.Status > 2 THEN NULL ELSE Nodes.Status END) as Status "
                                       "FROM Orion.Nodes "
                                       "GROUP BY Nodes.CustomProperties.%s"
                                       % (self.sw_location, self.sw_location))
@@ -145,7 +145,7 @@ class Location(object):
          Returns:
             A string containing the path to the marker image for this location.
         """
-        if self.status == 1 or self.status == 9:
+        if self.status == 1:
             image_path = "markers/green.png"
         else:
             image_path = "markers/red.png"
